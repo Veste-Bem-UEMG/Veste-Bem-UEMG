@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Admin · Instituições{% endblock %}
+{% block conteudo %}
+<h1>Instituições parceiras</h1>
+<form method="post" class="form-admin">
+  <input name="nome" placeholder="Nome" required>
+  <input name="endereco" placeholder="Endereço">
+  <input name="cidade" placeholder="Cidade" required>
+  <select name="estado" required><option value="">UF</option>{% for uf in estados %}<option>{{ uf }}</option>{% endfor %}</select>
+  <input name="telefone" placeholder="Telefone">
+  <input name="latitude" type="number" step="any" placeholder="Latitude">
+  <input name="longitude" type="number" step="any" placeholder="Longitude">
+  <button type="submit">Adicionar</button>
+</form>
+<table>
+  <tr><th>Nome</th><th>Endereço</th><th>Cidade</th><th>Coordenadas</th><th>Situação</th><th></th></tr>
+  {% for i in instituicoes %}
+  <tr>
+    <td>{{ i.nome }}</td><td>{{ i.endereco or '' }}</td><td>{{ i.cidade }}/{{ i.estado }}</td>
+    <td>{% if i.latitude is not none %}{{ '%.4f'|format(i.latitude) }}, {{ '%.4f'|format(i.longitude) }}{% endif %}</td>
+    <td>{{ 'Ativa' if i.ativa else 'Inativa' }}</td>
+    <td><form method="post" action="{{ url_for('admin_alternar_instituicao', inst_id=i.id) }}"><button class="{{ 'perigo' if i.ativa }}">{{ 'Desativar' if i.ativa else 'Ativar' }}</button></form></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

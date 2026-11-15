@@ -1,0 +1,18 @@
+{% set lista = doacoes if doacoes is defined else ultimas %}
+{% if lista %}
+<table>
+  <tr><th>#</th><th>Data</th><th>Instituição</th><th>Peças</th><th>Pontos</th><th>Status</th></tr>
+  {% for d in lista %}
+  <tr>
+    <td>{{ d.id }}</td>
+    <td>{{ d.criada_em.strftime('%d/%m/%Y') }}</td>
+    <td>{{ d.instituicao.nome }}</td>
+    <td>{% for i in d.itens %}{{ i.quantidade }} {{ i.categoria.nome }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{{ d.pontos }}</td>
+    <td><span class="status {{ d.status }}">{{ d.status }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="vazio">Nenhuma doação ainda.</p>
+{% endif %}

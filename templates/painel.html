@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block conteudo %}
+<h1>Olá, {{ g.usuario.usuario }}!</h1>
+
+<div class="cards">
+  <div class="card destaque">
+    <span class="rotulo">Carteira virtual</span>
+    <strong class="numero">{{ g.usuario.saldo_pontos }}</strong><span>pontos disponíveis</span>
+  </div>
+  <div class="card">
+    <span class="rotulo">Nível</span>
+    <strong class="numero">{{ nivel.nome }}{% if floresta %} 🌳 Floresta{% endif %}</strong>
+    <span>{{ nivel.beneficio }}</span>
+    <div class="barra"><div style="width: {{ progresso }}%"></div></div>
+    <small>{{ g.usuario.pontos_total }} pontos acumulados{% if nivel.maximo %} · próximo nível em {{ nivel.maximo + 1 }}{% endif %}</small>
+  </div>
+  <div class="card">
+    <span class="rotulo">Aguardando confirmação</span>
+    <strong class="numero">{{ pendentes }}</strong><span>doação(ões)</span>
+  </div>
+</div>
+
+<p><a class="botao" href="{{ url_for('doar') }}">+ Nova doação</a></p>
+
+<h2>Como funciona</h2>
+<ol class="passos">
+  <li><b>Separe:</b> cadastre as peças por categoria.</li>
+  <li><b>Doe:</b> escolha a instituição ou ponto de coleta mais próximo.</li>
+  <li><b>Ganhe:</b> quando a instituição confirmar, os pontos caem na sua carteira.</li>
+</ol>
+
+<h2>Sistema de benefícios</h2>
+<table>
+  <tr><th>Nível</th><th>Pontos</th><th>Benefício</th></tr>
+  {% for nome, minimo, maximo, beneficio in niveis %}
+  <tr {% if nome == nivel.nome %}class="atual"{% endif %}><td>{{ nome }}</td><td>{% if maximo %}{{ minimo }} a {{ maximo }}{% else %}acima de {{ minimo - 1 }}{% endif %}</td><td>{{ beneficio }}</td></tr>
+  {% endfor %}
+  <tr {% if floresta %}class="atual"{% endif %}><td>Floresta</td><td>Top 10 do ano</td><td>Certificado Cidadão Solidário e prêmios especiais</td></tr>
+</table>
+
+<h2>Últimas doações</h2>
+{% include "_tabela_doacoes.html" with context %}
+{% endblock %}

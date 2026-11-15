@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Admin · Prêmios{% endblock %}
+{% block conteudo %}
+<h1>Prêmios</h1>
+<form method="post" class="form-admin">
+  <input name="nome" placeholder="Nome do prêmio" required>
+  <input name="descricao" placeholder="Descrição">
+  <input name="custo_pontos" type="number" min="1" placeholder="Custo em pontos" required>
+  <select name="nivel_minimo">{% for n in niveis %}<option>{{ n }}</option>{% endfor %}</select>
+  <button type="submit">Adicionar</button>
+</form>
+<table>
+  <tr><th>Prêmio</th><th>Descrição</th><th>Custo</th><th>Nível mínimo</th></tr>
+  {% for p in premios %}<tr><td>{{ p.nome }}</td><td>{{ p.descricao or '' }}</td><td>{{ p.custo_pontos }}</td><td>{{ p.nivel_minimo }}</td></tr>{% endfor %}
+</table>
+{% endblock %}

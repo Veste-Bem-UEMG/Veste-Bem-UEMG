@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block titulo %}Instituições{% endblock %}
+{% block conteudo %}
+<h1>Instituições parceiras e pontos de coleta</h1>
+{% if not com_localizacao %}
+<p><button type="button" onclick="localizar()">📍 Ordenar pela mais próxima de mim</button> <small id="geo-msg"></small></p>
+{% endif %}
+<div class="cards">
+  {% for item in lista %}{% set i = item.inst %}
+  <div class="card">
+    <strong>{{ i.nome }}</strong>
+    <span>{{ i.endereco or '' }}</span>
+    <span>{{ i.cidade }}/{{ i.estado }}{% if i.telefone %} · {{ i.telefone }}{% endif %}</span>
+    {% if item.distancia is not none %}<span class="dist">{{ '%.1f'|format(item.distancia) }} km de você</span>{% endif %}
+    <a class="botao" href="{{ url_for('doar', instituicao=i.id) }}">Doar aqui</a>
+  </div>
+  {% else %}
+  <p class="vazio">Nenhuma instituição cadastrada.</p>
+  {% endfor %}
+</div>
+<script>
+function localizar() {
+  const msg = document.getElementById('geo-msg');
+  if (!navigator.geolocation) { msg.textContent = 'Seu navegador não suporta geolocalização.'; return; }
+  msg.textContent = 'Obtendo localização...';
+  navigator.geolocation.getCurrentPosition(
+    p => location.search = `?lat=${p.coords.latitude}&lon=${p.coords.longitude}`,
+    () => msg.textContent = 'Não foi possível obter sua localização.'
+  );
+}
+</script>
+{% endblock %}
