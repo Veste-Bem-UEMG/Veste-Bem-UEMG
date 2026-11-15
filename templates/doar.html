@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Doar{% endblock %}
+{% block conteudo %}
+<h1>Nova doação</h1>
+<form method="post" class="form-doacao">
+  <h2>1. Separe suas peças</h2>
+  <div class="grade-categorias">
+    {% for c in categorias %}
+    <label class="cat">
+      <span>{{ c.nome }} <small>({{ c.pontos_por_peca }} pts/peça)</small></span>
+      <input type="number" name="qtd_{{ c.id }}" min="0" max="500" value="0" data-pontos="{{ c.pontos_por_peca }}">
+    </label>
+    {% endfor %}
+  </div>
+  <p>Pontos previstos: <strong id="previsto">0</strong></p>
+
+  <h2>2. Escolha onde doar</h2>
+  <select name="instituicao_id" required>
+    <option value="">Selecione a instituição</option>
+    {% for i in instituicoes %}
+    <option value="{{ i.id }}" {% if i.id == instituicao_escolhida %}selected{% endif %}>{{ i.nome }} — {{ i.cidade }}/{{ i.estado }}</option>
+    {% endfor %}
+  </select>
+  <p><a href="{{ url_for('instituicoes') }}">Ver instituições mais próximas de mim</a></p>
+
+  <label>Observação (opcional) <input name="observacao" maxlength="255"></label>
+  <button type="submit">Registrar doação</button>
+</form>
+<script>
+  const campos = document.querySelectorAll('input[data-pontos]');
+  function calcular() {
+    let t = 0;
+    campos.forEach(c => t += (parseInt(c.value) || 0) * parseInt(c.dataset.pontos));
+    document.getElementById('previsto').textContent = t;
+  }
+  campos.forEach(c => c.addEventListener('input', calcular));
+</script>
+{% endblock %}

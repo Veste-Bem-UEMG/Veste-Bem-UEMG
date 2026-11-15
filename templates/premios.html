@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Prêmios{% endblock %}
+{% block conteudo %}
+<h1>Trocar pontos por prêmios</h1>
+<p>Saldo: <strong>{{ g.usuario.saldo_pontos }} pontos</strong> · Nível: <strong>{{ g.usuario.nivel.nome }}</strong></p>
+<div class="cards">
+  {% for p in premios %}
+  {% set bloqueado = ordem_niveis.index(p.nivel_minimo) > nivel_idx %}
+  <div class="card {% if bloqueado %}bloqueado{% endif %}">
+    <strong>{{ p.nome }}</strong>
+    <span>{{ p.descricao or '' }}</span>
+    <span>{{ p.custo_pontos }} pontos · nível {{ p.nivel_minimo }}</span>
+    <form method="post" action="{{ url_for('resgatar_premio', premio_id=p.id) }}">
+      <button type="submit" {% if bloqueado or g.usuario.saldo_pontos < p.custo_pontos %}disabled{% endif %}>Resgatar</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+<h2>Meus resgates</h2>
+{% if resgates %}
+<table>
+  <tr><th>Data</th><th>Prêmio</th><th>Pontos</th></tr>
+  {% for r in resgates %}<tr><td>{{ r.criado_em.strftime('%d/%m/%Y') }}</td><td>{{ r.premio.nome }}</td><td>{{ r.pontos_gastos }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="vazio">Nenhum resgate ainda.</p>{% endif %}
+{% endblock %}
