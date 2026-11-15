@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}VesteBem{% endblock %} · VesteBem</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="{{ url_for('painel') if g.usuario else url_for('login') }}">👕 VesteBem</a>
+    {% if g.usuario %}
+    <nav>
+      {% if g.usuario.is_admin %}
+        <a href="{{ url_for('admin_doacoes') }}">Doações</a>
+        <a href="{{ url_for('admin_instituicoes') }}">Instituições</a>
+        <a href="{{ url_for('admin_categorias') }}">Categorias</a>
+        <a href="{{ url_for('admin_premios') }}">Prêmios</a>
+        <a href="{{ url_for('admin_usuarios') }}">Usuários</a>
+      {% else %}
+        <a href="{{ url_for('painel') }}">Painel</a>
+        <a href="{{ url_for('doar') }}">Doar</a>
+        <a href="{{ url_for('minhas_doacoes') }}">Minhas doações</a>
+        <a href="{{ url_for('instituicoes') }}">Instituições</a>
+        <a href="{{ url_for('premios') }}">Prêmios</a>
+      {% endif %}
+      <a href="{{ url_for('ranking') }}">Ranking</a>
+      <span class="quem">{{ g.usuario.usuario }}{% if not g.usuario.is_admin %} · {{ g.usuario.saldo_pontos }} pts{% endif %}</span>
+      <a class="sair" href="{{ url_for('logout') }}">Sair</a>
+    </nav>
+    {% endif %}
+  </header>
+
+  <main class="conteudo">
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+      {% for categoria, msg in mensagens %}
+        <div class="alerta {{ categoria }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block conteudo %}{% endblock %}
+  </main>
+
+  <footer class="rodape">VesteBem · Sistemas de Informação · UEMG</footer>
+</body>
+</html>

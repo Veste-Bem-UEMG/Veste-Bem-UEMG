@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Ranking{% endblock %}
+{% block conteudo %}
+<h1>🌳 Floresta — Top 10 de {{ ano }}</h1>
+<p>Os 10 maiores doadores do ano recebem o <b>Certificado Cidadão Solidário</b> e prêmios especiais.</p>
+{% if ranking %}
+<table>
+  <tr><th>Posição</th><th>Doador</th><th>Cidade</th><th>Pontos no ano</th></tr>
+  {% for u, pontos in ranking %}
+  <tr {% if g.usuario.id == u.id %}class="atual"{% endif %}>
+    <td>{{ loop.index }}º</td><td>{{ u.usuario }}</td><td>{{ u.cidade }}/{{ u.estado }}</td><td>{{ pontos }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p class="vazio">Nenhuma doação confirmada neste ano ainda.</p>{% endif %}
+{% endblock %}
