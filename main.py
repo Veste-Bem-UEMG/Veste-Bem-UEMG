@@ -1,5 +1,6 @@
 """
 main.py - Aplicação principal do VesteBem (Flask).
+\\teste
 
 Como rodar:
     pip install -r requirements.txt
