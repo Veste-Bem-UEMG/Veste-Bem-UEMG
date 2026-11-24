@@ -9,7 +9,7 @@
     <td>{{ d.instituicao.nome }}</td>
     <td>{% for i in d.itens %}{{ i.quantidade }} {{ i.categoria.nome }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
     <td>{{ d.pontos }}</td>
-    <td><span class="status {{ d.status }}">{{ d.status }}</span></td>
+    <td><span class="status {{ d.status }}">{{ d.status }}</span>{% if d.motivo_recusa %}<br><small>Motivo: {{ d.motivo_recusa }}</small>{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
