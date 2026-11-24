@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="topo">
-    <a class="marca" href="{{ url_for('painel') if g.usuario else url_for('login') }}">👕 VesteBem</a>
+    <a class="marca" href="{{ url_for('index') }}">👕 VesteBem</a>
     {% if g.usuario %}
     <nav>
       {% if g.usuario.is_admin %}
@@ -17,6 +17,8 @@
         <a href="{{ url_for('admin_categorias') }}">Categorias</a>
         <a href="{{ url_for('admin_premios') }}">Prêmios</a>
         <a href="{{ url_for('admin_usuarios') }}">Usuários</a>
+      {% elif g.usuario.is_instituicao %}
+        <a href="{{ url_for('instituicao_doacoes') }}">Doações recebidas</a>
       {% else %}
         <a href="{{ url_for('painel') }}">Painel</a>
         <a href="{{ url_for('doar') }}">Doar</a>
@@ -25,7 +27,7 @@
         <a href="{{ url_for('premios') }}">Prêmios</a>
       {% endif %}
       <a href="{{ url_for('ranking') }}">Ranking</a>
-      <span class="quem">{{ g.usuario.usuario }}{% if not g.usuario.is_admin %} · {{ g.usuario.saldo_pontos }} pts{% endif %}</span>
+      <span class="quem">{{ g.usuario.usuario }}{% if g.usuario.is_doador %} · {{ g.usuario.saldo_pontos }} pts{% elif g.usuario.is_instituicao %} · {{ g.usuario.instituicao.nome }}{% endif %}</span>
       <a class="sair" href="{{ url_for('logout') }}">Sair</a>
     </nav>
     {% endif %}

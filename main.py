@@ -7,6 +7,11 @@ Como rodar:
     python seed.py        # (opcional) cria e popula o banco com dados de exemplo
     python main.py        # sobe o servidor em http://127.0.0.1:5000
 
+Perfis de acesso:
+    admin        -> gerencia o sistema (instituições, categorias, prêmios, usuários)
+    instituicao  -> confirma ou recusa as doações destinadas à sua instituição
+    doador       -> registra doações, acumula pontos e troca por prêmios
+
 Login de administrador padrão (APENAS PARA TESTE):
     usuário: admin   senha: 123
 """
@@ -15,8 +20,8 @@ import os
 from datetime import datetime
 from functools import wraps
 
-from flask import Flask, flash, g, redirect, render_template, request, session, url_for
-from sqlalchemy import extract, func
+from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from sqlalchemy import extract, func, inspect, text
 
 from models import (
     NIVEIS,
@@ -61,10 +66,29 @@ def criar_admin_padrao():
         db.session.commit()
 
 
+def atualizar_esquema():
+    """
+    Adiciona colunas novas em bancos criados por versões anteriores do projeto
+    (o db.create_all() cria tabelas novas, mas não altera tabelas que já existem).
+    """
+    colunas_novas = {
+        "usuarios": {"instituicao_id": "INTEGER REFERENCES instituicoes(id)"},
+        "doacoes": {"motivo_recusa": "VARCHAR(255)"},
+    }
+    inspetor = inspect(db.engine)
+    for tabela, colunas in colunas_novas.items():
+        existentes = {c["name"] for c in inspetor.get_columns(tabela)}
+        for coluna, tipo in colunas.items():
+            if coluna not in existentes:
+                db.session.execute(text(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}"))
+    db.session.commit()
+
+
 def inicializar_banco():
-    """Cria as tabelas (se não existirem) e o admin padrão."""
+    """Cria as tabelas (se não existirem), atualiza o esquema e cria o admin padrão."""
     with app.app_context():
         db.create_all()
+        atualizar_esquema()
         criar_admin_padrao()
 
 
@@ -78,6 +102,14 @@ def carregar_usuario_logado():
     g.usuario = db.session.get(Usuario, usuario_id) if usuario_id else None
 
 
+def pagina_inicial(usuario):
+    """Cada perfil tem sua página inicial."""
+    return {
+        "admin": url_for("admin_doacoes"),
+        "instituicao": url_for("instituicao_doacoes"),
+    }.get(usuario.perfil, url_for("painel"))
+
+
 def login_obrigatorio(view):
     """Decorator: só deixa acessar a rota se estiver logado."""
     @wraps(view)
@@ -89,22 +121,29 @@ def login_obrigatorio(view):
     return wrapper
 
 
-def admin_obrigatorio(view):
-    """Decorator: só deixa acessar a rota se for administrador."""
-    @wraps(view)
-    @login_obrigatorio
-    def wrapper(*args, **kwargs):
-        if not g.usuario.is_admin:
-            flash("Acesso restrito ao administrador.", "erro")
-            return redirect(url_for("painel"))
-        return view(*args, **kwargs)
-    return wrapper
+def perfil_obrigatorio(perfil, mensagem):
+    """Cria um decorator que só deixa acessar a rota quem tem o perfil indicado."""
+    def decorator(view):
+        @wraps(view)
+        @login_obrigatorio
+        def wrapper(*args, **kwargs):
+            if g.usuario.perfil != perfil:
+                flash(mensagem, "erro")
+                return redirect(pagina_inicial(g.usuario))
+            return view(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+admin_obrigatorio = perfil_obrigatorio("admin", "Acesso restrito ao administrador.")
+instituicao_obrigatorio = perfil_obrigatorio("instituicao", "Acesso restrito às instituições parceiras.")
+doador_obrigatorio = perfil_obrigatorio("doador", "Esta página é exclusiva para doadores.")
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if g.usuario:
-        return redirect(url_for("painel"))
+        return redirect(pagina_inicial(g.usuario))
 
     if request.method == "POST":
         nome = request.form.get("usuario", "").strip().lower()
@@ -119,7 +158,7 @@ def login():
             # Só redireciona para caminhos internos (evita "open redirect")
             if proximo and proximo.startswith("/") and not proximo.startswith("//"):
                 return redirect(proximo)
-            return redirect(url_for("admin_doacoes" if usuario.is_admin else "painel"))
+            return redirect(pagina_inicial(usuario))
 
         flash("Usuário ou senha inválidos.", "erro")
 
@@ -129,7 +168,7 @@ def login():
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     if g.usuario:
-        return redirect(url_for("painel"))
+        return redirect(pagina_inicial(g.usuario))
 
     dados = {}
     if request.method == "POST":
@@ -182,11 +221,11 @@ def logout():
 @app.route("/")
 @login_obrigatorio
 def index():
-    return redirect(url_for("painel"))
+    return redirect(pagina_inicial(g.usuario))
 
 
 @app.route("/painel")
-@login_obrigatorio
+@doador_obrigatorio
 def painel():
     u = g.usuario
     nivel = u.nivel
@@ -204,7 +243,7 @@ def painel():
 
 
 @app.route("/doar", methods=["GET", "POST"])
-@login_obrigatorio
+@doador_obrigatorio
 def doar():
     categorias = Categoria.query.order_by(Categoria.nome).all()
     instituicoes = Instituicao.query.filter_by(ativa=True).order_by(Instituicao.nome).all()
@@ -241,7 +280,7 @@ def doar():
 
 
 @app.route("/minhas-doacoes")
-@login_obrigatorio
+@doador_obrigatorio
 def minhas_doacoes():
     doacoes = g.usuario.doacoes.order_by(Doacao.criada_em.desc()).all()
     return render_template("minhas_doacoes.html", doacoes=doacoes)
@@ -257,7 +296,7 @@ def distancia_km(lat1, lon1, lat2, lon2):
 
 
 @app.route("/instituicoes")
-@login_obrigatorio
+@doador_obrigatorio
 def instituicoes():
     """2. Doe: lista instituições, ordenando pela mais próxima se o navegador enviar a localização."""
     lat = request.args.get("lat", type=float)
@@ -286,7 +325,8 @@ def ranking_do_ano(limite=10):
         .join(Doacao, Doacao.usuario_id == Usuario.id)
         .filter(Doacao.status == Doacao.CONFIRMADA,
                 extract("year", Doacao.confirmada_em) == ano,
-                Usuario.is_admin.is_(False))
+                Usuario.is_admin.is_(False),
+                Usuario.instituicao_id.is_(None))
         .group_by(Usuario.id)
         .order_by(pontos.desc())
         .limit(limite)
@@ -305,7 +345,7 @@ def ranking():
 
 
 @app.route("/premios")
-@login_obrigatorio
+@doador_obrigatorio
 def premios():
     lista = Premio.query.filter_by(ativo=True).order_by(Premio.custo_pontos).all()
     resgates = g.usuario.resgates.order_by(Resgate.criado_em.desc()).all()
@@ -315,7 +355,7 @@ def premios():
 
 
 @app.route("/premios/<int:premio_id>/resgatar", methods=["POST"])
-@login_obrigatorio
+@doador_obrigatorio
 def resgatar_premio(premio_id):
     """3. Ganhe: troca os pontos da carteira virtual por um prêmio."""
     premio = db.get_or_404(Premio, premio_id)
@@ -335,28 +375,35 @@ def resgatar_premio(premio_id):
 
 
 # ===========================================================================
-# Área do administrador
+# Área da instituição parceira
 # ===========================================================================
-@app.route("/admin")
-@admin_obrigatorio
-def admin_doacoes():
+@app.route("/instituicao")
+@instituicao_obrigatorio
+def instituicao_doacoes():
+    """A instituição vê somente as doações destinadas a ela."""
     status = request.args.get("status", Doacao.PENDENTE)
-    doacoes = Doacao.query.filter_by(status=status).order_by(Doacao.criada_em.desc()).all()
+    minhas = Doacao.query.filter_by(instituicao_id=g.usuario.instituicao_id)
+    doacoes = minhas.filter_by(status=status).order_by(Doacao.criada_em.desc()).all()
     resumo = {
-        "usuarios": Usuario.query.filter_by(is_admin=False).count(),
-        "pendentes": Doacao.query.filter_by(status=Doacao.PENDENTE).count(),
-        "confirmadas": Doacao.query.filter_by(status=Doacao.CONFIRMADA).count(),
-        "pecas": db.session.query(func.coalesce(func.sum(ItemDoacao.quantidade), 0))
-                 .join(Doacao).filter(Doacao.status == Doacao.CONFIRMADA).scalar(),
+        "pendentes": minhas.filter_by(status=Doacao.PENDENTE).count(),
+        "confirmadas": minhas.filter_by(status=Doacao.CONFIRMADA).count(),
+        "recusadas": minhas.filter_by(status=Doacao.RECUSADA).count(),
+        "pecas": db.session.query(func.coalesce(func.sum(ItemDoacao.quantidade), 0)).join(Doacao)
+                 .filter(Doacao.instituicao_id == g.usuario.instituicao_id,
+                         Doacao.status == Doacao.CONFIRMADA).scalar(),
     }
-    return render_template("admin/doacoes.html", doacoes=doacoes, status=status, resumo=resumo)
+    return render_template("instituicao/doacoes.html", doacoes=doacoes, status=status, resumo=resumo)
 
 
-@app.route("/admin/doacoes/<int:doacao_id>/<acao>", methods=["POST"])
-@admin_obrigatorio
-def admin_validar_doacao(doacao_id, acao):
-    """A instituição (representada pelo admin) confirma ou recusa o recebimento."""
+@app.route("/instituicao/doacoes/<int:doacao_id>/<acao>", methods=["POST"])
+@instituicao_obrigatorio
+def instituicao_validar_doacao(doacao_id, acao):
+    """3. Ganhe: a instituição confirma (credita os pontos) ou recusa o recebimento."""
     doacao = db.get_or_404(Doacao, doacao_id)
+    # Uma instituição não pode mexer em doações de outra
+    if doacao.instituicao_id != g.usuario.instituicao_id:
+        abort(404)
+
     if doacao.status != Doacao.PENDENTE:
         flash("Esta doação já foi validada.", "aviso")
     elif acao == "confirmar":
@@ -367,10 +414,36 @@ def admin_validar_doacao(doacao_id, acao):
         db.session.commit()
         flash(f"Doação #{doacao.id} confirmada: +{doacao.pontos} pontos para {doacao.usuario.usuario}.", "sucesso")
     elif acao == "recusar":
-        doacao.status = Doacao.RECUSADA
-        db.session.commit()
-        flash(f"Doação #{doacao.id} recusada.", "aviso")
-    return redirect(url_for("admin_doacoes"))
+        motivo = request.form.get("motivo", "").strip()
+        if not motivo:
+            flash("Informe o motivo da recusa.", "erro")
+        else:
+            doacao.status = Doacao.RECUSADA
+            doacao.motivo_recusa = motivo[:255]
+            db.session.commit()
+            flash(f"Doação #{doacao.id} recusada.", "aviso")
+    else:
+        abort(404)
+    return redirect(url_for("instituicao_doacoes"))
+
+
+# ===========================================================================
+# Área do administrador (gerencia o sistema; quem valida doações é a instituição)
+# ===========================================================================
+@app.route("/admin")
+@admin_obrigatorio
+def admin_doacoes():
+    """Visão geral (somente leitura) de todas as doações."""
+    status = request.args.get("status", Doacao.PENDENTE)
+    doacoes = Doacao.query.filter_by(status=status).order_by(Doacao.criada_em.desc()).all()
+    resumo = {
+        "usuarios": Usuario.query.filter_by(is_admin=False, instituicao_id=None).count(),
+        "pendentes": Doacao.query.filter_by(status=Doacao.PENDENTE).count(),
+        "confirmadas": Doacao.query.filter_by(status=Doacao.CONFIRMADA).count(),
+        "pecas": db.session.query(func.coalesce(func.sum(ItemDoacao.quantidade), 0))
+                 .join(Doacao).filter(Doacao.status == Doacao.CONFIRMADA).scalar(),
+    }
+    return render_template("admin/doacoes.html", doacoes=doacoes, status=status, resumo=resumo)
 
 
 @app.route("/admin/instituicoes", methods=["GET", "POST"])
@@ -380,22 +453,65 @@ def admin_instituicoes():
         nome = request.form.get("nome", "").strip()
         cidade = request.form.get("cidade", "").strip()
         estado = request.form.get("estado", "").strip().upper()
+        login = request.form.get("login", "").strip().lower()
+        senha = request.form.get("senha", "")
         if not nome or not cidade or estado not in ESTADOS:
             flash("Preencha nome, cidade e estado.", "erro")
+        elif login and (erro := validar_novo_login(login, senha)):
+            flash(erro, "erro")
         else:
-            db.session.add(Instituicao(
+            inst = Instituicao(
                 nome=nome, cidade=cidade, estado=estado,
                 endereco=request.form.get("endereco", "").strip(),
                 telefone=request.form.get("telefone", "").strip(),
                 latitude=request.form.get("latitude", type=float),
                 longitude=request.form.get("longitude", type=float),
-            ))
+            )
+            db.session.add(inst)
+            if login:
+                criar_login_instituicao(inst, login, senha)
             db.session.commit()
-            flash(f"Instituição '{nome}' cadastrada.", "sucesso")
+            flash(f"Instituição '{nome}' cadastrada" + (f" com o login '{login}'." if login else "."), "sucesso")
         return redirect(url_for("admin_instituicoes"))
 
     lista = Instituicao.query.order_by(Instituicao.nome).all()
     return render_template("admin/instituicoes.html", instituicoes=lista, estados=ESTADOS)
+
+
+def validar_novo_login(login, senha):
+    """Retorna uma mensagem de erro, ou None se o login puder ser criado."""
+    if len(login) < 3 or not login.replace("_", "").replace(".", "").isalnum():
+        return "O login deve ter ao menos 3 caracteres (letras, números, '.' ou '_')."
+    if Usuario.query.filter_by(usuario=login).first():
+        return f"O login '{login}' já está em uso."
+    if len(senha) < 3:
+        return "A senha deve ter ao menos 3 caracteres."
+    return None
+
+
+def criar_login_instituicao(inst, login, senha):
+    """Cria o usuário com perfil 'instituicao' vinculado à instituição."""
+    responsavel = Usuario(usuario=login, cidade=inst.cidade, estado=inst.estado, instituicao=inst)
+    responsavel.definir_senha(senha)
+    db.session.add(responsavel)
+    return responsavel
+
+
+@app.route("/admin/instituicoes/<int:inst_id>/acesso", methods=["POST"])
+@admin_obrigatorio
+def admin_criar_acesso_instituicao(inst_id):
+    """Cria mais um login para uma instituição já cadastrada."""
+    inst = db.get_or_404(Instituicao, inst_id)
+    login = request.form.get("login", "").strip().lower()
+    senha = request.form.get("senha", "")
+    erro = validar_novo_login(login, senha)
+    if erro:
+        flash(erro, "erro")
+    else:
+        criar_login_instituicao(inst, login, senha)
+        db.session.commit()
+        flash(f"Login '{login}' criado para {inst.nome}.", "sucesso")
+    return redirect(url_for("admin_instituicoes"))
 
 
 @app.route("/admin/instituicoes/<int:inst_id>/alternar", methods=["POST"])
@@ -449,8 +565,11 @@ def admin_premios():
 @app.route("/admin/usuarios")
 @admin_obrigatorio
 def admin_usuarios():
+    perfil = request.args.get("perfil", "")
     usuarios = Usuario.query.order_by(Usuario.pontos_total.desc()).all()
-    return render_template("admin/usuarios.html", usuarios=usuarios)
+    if perfil:
+        usuarios = [u for u in usuarios if u.perfil == perfil]
+    return render_template("admin/usuarios.html", usuarios=usuarios, perfil=perfil)
 
 
 # ===========================================================================

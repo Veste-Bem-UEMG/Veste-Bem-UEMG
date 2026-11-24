@@ -60,3 +60,10 @@ tr.atual td { background: #fffde7; font-weight: 600; }
 .form-admin input { flex: 1 1 150px; }
 .passos li { margin-bottom: 4px; }
 .vazio { color: var(--cinza); }
+.sub { color: var(--cinza); margin-top: -8px; }
+.validar { display: flex; flex-direction: column; gap: 6px; min-width: 260px; }
+.validar form { margin: 0; }
+.recusa, .acesso { display: flex; gap: 6px; }
+.recusa input { flex: 1; padding: 7px 8px; font-size: .9rem; }
+.acesso { margin-top: 6px; } .acesso input { width: 110px; padding: 6px 8px; font-size: .85rem; } .acesso button { padding: 6px 10px; font-size: .85rem; white-space: nowrap; }
+.tag { display: inline-block; background: var(--verde-claro); color: var(--verde); padding: 2px 8px; border-radius: 10px; font-size: .85rem; }

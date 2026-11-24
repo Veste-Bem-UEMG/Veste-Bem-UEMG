@@ -2,7 +2,7 @@
 models.py - Modelos do banco de dados (SQLAlchemy) do VesteBem.
 
 Tabelas:
-    usuarios        -> doadores e administradores
+    usuarios        -> doadores, instituições (login da instituição) e administradores
     categorias      -> tipos de peça (Camisas, Calças, Sapatos...) e quantos pontos valem
     instituicoes    -> instituições parceiras / pontos de coleta (APAE, Instituto São José...)
     doacoes         -> uma doação feita por um usuário para uma instituição
@@ -50,6 +50,8 @@ class Usuario(db.Model):
     cidade = db.Column(db.String(100), nullable=False)
     estado = db.Column(db.String(2), nullable=False)  # sigla: MG, SP...
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    # Preenchido apenas para o login de uma instituição parceira (perfil "instituicao")
+    instituicao_id = db.Column(db.Integer, db.ForeignKey("instituicoes.id"), nullable=True)
 
     # pontos_total  = tudo que o usuário já ganhou (define o nível)
     # saldo_pontos  = pontos disponíveis para trocar por prêmios (carteira virtual)
@@ -60,6 +62,7 @@ class Usuario(db.Model):
 
     doacoes = db.relationship("Doacao", back_populates="usuario", lazy="dynamic")
     resgates = db.relationship("Resgate", back_populates="usuario", lazy="dynamic")
+    instituicao = db.relationship("Instituicao", back_populates="responsaveis")
 
     def __init__(self, **kwargs):
         # Garante pontos = 0 já ao criar o objeto (o default da coluna só vale ao salvar)
@@ -74,6 +77,23 @@ class Usuario(db.Model):
 
     def verificar_senha(self, senha: str) -> bool:
         return check_password_hash(self.senha_hash, senha)
+
+    # Perfis de acesso: "admin", "instituicao" ou "doador"
+    @property
+    def perfil(self) -> str:
+        if self.is_admin:
+            return "admin"
+        if self.instituicao_id:
+            return "instituicao"
+        return "doador"
+
+    @property
+    def is_instituicao(self) -> bool:
+        return self.perfil == "instituicao"
+
+    @property
+    def is_doador(self) -> bool:
+        return self.perfil == "doador"
 
     @property
     def nivel(self) -> dict:
@@ -115,6 +135,8 @@ class Instituicao(db.Model):
     ativa = db.Column(db.Boolean, default=True, nullable=False)
 
     doacoes = db.relationship("Doacao", back_populates="instituicao", lazy="dynamic")
+    # Logins (usuários) que respondem pela instituição e confirmam as doações
+    responsaveis = db.relationship("Usuario", back_populates="instituicao")
 
     def __repr__(self):
         return f"<Instituicao {self.nome}>"
@@ -135,6 +157,7 @@ class Doacao(db.Model):
     instituicao_id = db.Column(db.Integer, db.ForeignKey("instituicoes.id"), nullable=False)
     status = db.Column(db.String(20), default=PENDENTE, nullable=False)
     observacao = db.Column(db.String(255))
+    motivo_recusa = db.Column(db.String(255))  # preenchido pela instituição ao recusar
     pontos = db.Column(db.Integer, default=0, nullable=False)  # calculado ao cadastrar
     criada_em = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     confirmada_em = db.Column(db.DateTime)

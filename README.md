@@ -60,6 +60,7 @@ python seed.py
 Isso cria o arquivo `instance/vestebem.db` e insere:
 
 - o usuário **admin / 123**
+- um login para cada instituição: **apae**, **saojose** e **coleta_uemg** (senha `123`)
 - 8 categorias de peças (com a pontuação de cada uma)
 - 3 instituições (APAE, Instituto São José e um ponto de coleta)
 - 5 prêmios
@@ -87,10 +88,15 @@ Acesse **http://127.0.0.1:5000**
 
 Todo o site exige login. Apenas as páginas `/login` e `/cadastro` são públicas.
 
+O sistema tem **3 perfis de acesso**. Cada um só enxerga as páginas do seu perfil e, ao entrar, cai direto na sua página inicial.
+
 | Perfil | Como entra | O que pode fazer |
 |---|---|---|
-| **Administrador** | `admin` / `123` (criado automaticamente, **apenas para teste**) | Confirmar ou recusar doações, cadastrar instituições, categorias e prêmios, ver usuários |
+| **Administrador** | `admin` / `123` (criado automaticamente, **apenas para teste**) | Gerenciar o sistema: cadastrar instituições e os logins delas, categorias e prêmios; ver usuários e a visão geral das doações (somente leitura) |
+| **Instituição** | Login criado pelo admin (no seed: `apae`, `saojose`, `coleta_uemg` / `123`) | Ver **apenas** as doações destinadas à sua instituição e **confirmar** o recebimento (credita os pontos) ou **recusar** informando o motivo |
 | **Doador** | Cria a conta em `/cadastro` | Registrar doações, ver instituições próximas, acompanhar pontos e nível, trocar pontos por prêmios, ver o ranking |
+
+**Fluxo de uma doação:** o doador registra a doação (*pendente*) → leva as peças até a instituição → a instituição entra no seu login e confirma (*confirmada*, pontos creditados) ou recusa com um motivo (*recusada*, o doador vê o motivo em "Minhas doações").
 
 **Cadastro:** pede **usuário**, **senha** (com confirmação), **cidade** e **estado**. O sistema verifica se o nome de usuário já existe antes de criar a conta. Maiúsculas e minúsculas são tratadas como iguais, então `Maria` e `maria` são o mesmo usuário.
 
@@ -98,7 +104,9 @@ Todo o site exige login. Apenas as páginas `/login` e `/cadastro` são pública
 
 - A senha nunca é salva em texto puro: `Usuario.definir_senha()` guarda só o **hash** (`generate_password_hash`), e o login compara com `check_password_hash`.
 - Ao logar, o `id` do usuário é guardado em `session` (um cookie assinado com a `SECRET_KEY`).
-- `@login_obrigatorio` protege as rotas do doador e `@admin_obrigatorio` protege as rotas do admin.
+- O perfil vem da tabela `usuarios`: `is_admin = True` → admin; `instituicao_id` preenchido → instituição; senão → doador.
+- `@login_obrigatorio` exige login; `@doador_obrigatorio`, `@instituicao_obrigatorio` e `@admin_obrigatorio` liberam cada rota só para o perfil certo.
+- Uma instituição não consegue ver nem validar doações de outra (a rota responde 404).
 
 > Em produção, troque a senha do admin e defina a variável de ambiente `SECRET_KEY` com um valor secreto.
 
@@ -123,6 +131,7 @@ Veste-Bem-UEMG/
 │   ├── instituicoes.html  # lista ordenada por distância (geolocalização)
 │   ├── premios.html     # 3. Ganhe: troca de pontos
 │   ├── ranking.html     # Floresta: Top 10 do ano
+│   ├── instituicao/     # Página da instituição: confirmar ou recusar doações
 │   └── admin/           # Páginas do administrador
 └── instance/vestebem.db # Banco SQLite (gerado automaticamente, não vai para o Git)
 ```
@@ -130,10 +139,10 @@ Veste-Bem-UEMG/
 ## 🧩 Modelo de dados
 
 ```
-usuarios (id, usuario*, senha_hash, cidade, estado, is_admin, pontos_total, saldo_pontos)
+usuarios (id, usuario*, senha_hash, cidade, estado, is_admin, instituicao_id → instituicoes, pontos_total, saldo_pontos)
 categorias (id, nome*, pontos_por_peca)
 instituicoes (id, nome, endereco, cidade, estado, telefone, latitude, longitude, ativa)
-doacoes (id, usuario_id → usuarios, instituicao_id → instituicoes, status, pontos, criada_em, confirmada_em)
+doacoes (id, usuario_id → usuarios, instituicao_id → instituicoes, status, motivo_recusa, pontos, criada_em, confirmada_em)
 itens_doacao (id, doacao_id → doacoes, categoria_id → categorias, quantidade)
 premios (id, nome, descricao, custo_pontos, nivel_minimo)
 resgates (id, usuario_id → usuarios, premio_id → premios, pontos_gastos, criado_em)
@@ -142,7 +151,9 @@ resgates (id, usuario_id → usuarios, premio_id → premios, pontos_gastos, cri
 
 - `pontos_total`: tudo que o usuário já ganhou. Define o nível (Semente, Ramo, Árvore).
 - `saldo_pontos`: carteira virtual. Diminui quando o usuário troca pontos por prêmios.
-- Status da doação: `pendente` → `confirmada` (os pontos são creditados) ou `recusada`.
+- Status da doação: `pendente` → `confirmada` (os pontos são creditados) ou `recusada` (com `motivo_recusa`).
+
+> **Já tinha o banco da versão anterior?** Não precisa apagar: ao rodar `python main.py` ou `python seed.py`, as colunas novas são criadas automaticamente e o `seed.py` cria os logins das instituições.
 
 ### Trocar para MySQL ou PostgreSQL
 

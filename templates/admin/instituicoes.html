@@ -2,6 +2,7 @@
 {% block titulo %}Admin · Instituições{% endblock %}
 {% block conteudo %}
 <h1>Instituições parceiras</h1>
+<h2>Nova instituição</h2>
 <form method="post" class="form-admin">
   <input name="nome" placeholder="Nome" required>
   <input name="endereco" placeholder="Endereço">
@@ -10,14 +11,25 @@
   <input name="telefone" placeholder="Telefone">
   <input name="latitude" type="number" step="any" placeholder="Latitude">
   <input name="longitude" type="number" step="any" placeholder="Longitude">
+  <input name="login" placeholder="Login da instituição (opcional)" autocomplete="off">
+  <input name="senha" type="password" placeholder="Senha do login" autocomplete="new-password">
   <button type="submit">Adicionar</button>
 </form>
 <table>
-  <tr><th>Nome</th><th>Endereço</th><th>Cidade</th><th>Coordenadas</th><th>Situação</th><th></th></tr>
+  <tr><th>Nome</th><th>Cidade</th><th>Coordenadas</th><th>Logins de acesso</th><th>Situação</th><th></th></tr>
   {% for i in instituicoes %}
   <tr>
-    <td>{{ i.nome }}</td><td>{{ i.endereco or '' }}</td><td>{{ i.cidade }}/{{ i.estado }}</td>
+    <td>{{ i.nome }}{% if i.endereco %}<br><small>{{ i.endereco }}</small>{% endif %}</td>
+    <td>{{ i.cidade }}/{{ i.estado }}</td>
     <td>{% if i.latitude is not none %}{{ '%.4f'|format(i.latitude) }}, {{ '%.4f'|format(i.longitude) }}{% endif %}</td>
+    <td>
+      {% for r in i.responsaveis %}<span class="tag">{{ r.usuario }}</span> {% else %}<small class="vazio">Sem login: ninguém confirma as doações desta instituição.</small>{% endfor %}
+      <form method="post" action="{{ url_for('admin_criar_acesso_instituicao', inst_id=i.id) }}" class="acesso">
+        <input name="login" placeholder="novo login" required autocomplete="off">
+        <input name="senha" type="password" placeholder="senha" required autocomplete="new-password">
+        <button>Criar acesso</button>
+      </form>
+    </td>
     <td>{{ 'Ativa' if i.ativa else 'Inativa' }}</td>
     <td><form method="post" action="{{ url_for('admin_alternar_instituicao', inst_id=i.id) }}"><button class="{{ 'perigo' if i.ativa }}">{{ 'Desativar' if i.ativa else 'Ativar' }}</button></form></td>
   </tr>

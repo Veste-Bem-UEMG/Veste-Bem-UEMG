@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Doações recebidas{% endblock %}
+{% block conteudo %}
+<h1>{{ g.usuario.instituicao.nome }}</h1>
+<p class="sub">Confirme as doações que chegaram até vocês. Os pontos só são creditados ao doador após a confirmação.</p>
+
+<div class="cards">
+  <div class="card destaque"><span class="rotulo">Aguardando confirmação</span><strong class="numero">{{ resumo.pendentes }}</strong></div>
+  <div class="card"><span class="rotulo">Confirmadas</span><strong class="numero">{{ resumo.confirmadas }}</strong></div>
+  <div class="card"><span class="rotulo">Recusadas</span><strong class="numero">{{ resumo.recusadas }}</strong></div>
+  <div class="card"><span class="rotulo">Peças recebidas</span><strong class="numero">{{ resumo.pecas }}</strong></div>
+</div>
+
+<p class="abas">
+  {% for s in ['pendente', 'confirmada', 'recusada'] %}
+  <a href="{{ url_for('instituicao_doacoes', status=s) }}" class="{% if s == status %}ativa{% endif %}">{{ s|capitalize }}s</a>
+  {% endfor %}
+</p>
+
+{% if doacoes %}
+<table>
+  <tr><th>#</th><th>Data</th><th>Doador</th><th>Peças</th><th>Pontos</th><th>{% if status == 'pendente' %}Validar recebimento{% else %}Situação{% endif %}</th></tr>
+  {% for d in doacoes %}
+  <tr>
+    <td>{{ d.id }}</td><td>{{ d.criada_em.strftime('%d/%m/%Y') }}</td><td>{{ d.usuario.usuario }}</td>
+    <td>{% for i in d.itens %}{{ i.quantidade }} {{ i.categoria.nome }}{% if not loop.last %}, {% endif %}{% endfor %}{% if d.observacao %}<br><small>Obs.: {{ d.observacao }}</small>{% endif %}</td>
+    <td>{{ d.pontos }}</td>
+    <td>
+      {% if d.status == 'pendente' %}
+      <div class="validar">
+        <form method="post" action="{{ url_for('instituicao_validar_doacao', doacao_id=d.id, acao='confirmar') }}">
+          <button>Confirmar recebimento</button>
+        </form>
+        <form method="post" action="{{ url_for('instituicao_validar_doacao', doacao_id=d.id, acao='recusar') }}" class="recusa">
+          <input name="motivo" placeholder="Motivo da recusa" maxlength="255" required>
+          <button class="perigo">Recusar</button>
+        </form>
+      </div>
+      {% else %}
+        <span class="status {{ d.status }}">{{ d.status }}</span>
+        {% if d.motivo_recusa %}<br><small>Motivo: {{ d.motivo_recusa }}</small>{% endif %}
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p class="vazio">Nenhuma doação {{ status }}.</p>{% endif %}
+{% endblock %}
