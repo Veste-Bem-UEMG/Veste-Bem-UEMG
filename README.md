@@ -96,6 +96,10 @@ O sistema tem **3 perfis de acesso**. Cada um só enxerga as páginas do seu per
 | **Instituição** | Login criado pelo admin (no seed: `apae`, `saojose`, `coleta_uemg` / `123`) | Ver **apenas** as doações destinadas à sua instituição e **confirmar** o recebimento (credita os pontos) ou **recusar** informando o motivo |
 | **Doador** | Cria a conta em `/cadastro` | Registrar doações, ver instituições próximas, acompanhar pontos e nível, trocar pontos por prêmios, ver o ranking |
 
+**Todos os perfis** também veem a página **Nosso impacto** (`/impacto`): totais e gráficos de peças doadas por mês, por categoria e por instituição (últimos 12 meses, este ano ou desde o início). Os gráficos são feitos só com HTML e CSS, sem biblioteca externa, então funcionam mesmo sem internet.
+
+**Instituição e admin** podem **exportar um relatório para Excel (CSV)** das doações, filtrando por período (data de registro), status e, no caso do admin, por instituição. A instituição só exporta as doações dela.
+
 **Fluxo de uma doação:** o doador registra a doação (*pendente*) → leva as peças até a instituição → a instituição entra no seu login e confirma (*confirmada*, pontos creditados) ou recusa com um motivo (*recusada*, o doador vê o motivo em "Minhas doações").
 
 **Cadastro:** pede **usuário**, **senha** (com confirmação), **cidade** e **estado**. O sistema verifica se o nome de usuário já existe antes de criar a conta. Maiúsculas e minúsculas são tratadas como iguais, então `Maria` e `maria` são o mesmo usuário.
@@ -131,6 +135,8 @@ Veste-Bem-UEMG/
 │   ├── instituicoes.html  # lista ordenada por distância (geolocalização)
 │   ├── premios.html     # 3. Ganhe: troca de pontos
 │   ├── ranking.html     # Floresta: Top 10 do ano
+│   ├── impacto.html     # Nosso impacto: gráficos das doações confirmadas
+│   ├── _exportar_csv.html  # formulário de exportação do relatório CSV
 │   ├── instituicao/     # Página da instituição: confirmar ou recusar doações
 │   └── admin/           # Páginas do administrador
 └── instance/vestebem.db # Banco SQLite (gerado automaticamente, não vai para o Git)

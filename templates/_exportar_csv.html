@@ -1,0 +1,23 @@
+<details class="exportar">
+  <summary>⬇ Exportar relatório para Excel (CSV)</summary>
+  <form method="get" action="{{ url_for('relatorio_doacoes_csv') }}" class="form-admin">
+    <label>De <input type="date" name="inicio"></label>
+    <label>Até <input type="date" name="fim"></label>
+    <label>Status
+      <select name="status">
+        <option value="">Todos</option><option value="pendente">Pendentes</option>
+        <option value="confirmada">Confirmadas</option><option value="recusada">Recusadas</option>
+      </select>
+    </label>
+    {% if instituicoes is defined %}
+    <label>Instituição
+      <select name="instituicao_id">
+        <option value="">Todas</option>
+        {% for i in instituicoes %}<option value="{{ i.id }}">{{ i.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <button type="submit">Baixar CSV</button>
+  </form>
+  <small>O período considera a data de registro da doação. Deixe as datas em branco para exportar tudo.</small>
+</details>
