@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block titulo %}Nosso impacto{% endblock %}
+{% block conteudo %}
+<h1>🌱 Nosso impacto</h1>
+<p class="sub">Resultado das doações <b>confirmadas</b> pelas instituições parceiras.</p>
+
+<p class="abas">
+  {% for chave, nome in periodos.items() %}
+  <a href="{{ url_for('impacto', periodo=chave) }}" class="{% if chave == periodo %}ativa{% endif %}">{{ nome }}</a>
+  {% endfor %}
+</p>
+
+<div class="cards">
+  <div class="card destaque"><span class="rotulo">Peças doadas</span><strong class="numero">{{ dados.totais.pecas }}</strong></div>
+  <div class="card"><span class="rotulo">Doações confirmadas</span><strong class="numero">{{ dados.totais.doacoes }}</strong></div>
+  <div class="card"><span class="rotulo">Doadores</span><strong class="numero">{{ dados.totais.doadores }}</strong></div>
+  <div class="card"><span class="rotulo">Instituições atendidas</span><strong class="numero">{{ dados.totais.instituicoes }}</strong></div>
+</div>
+
+{% if dados.totais.pecas == 0 %}
+<p class="vazio">Nenhuma doação confirmada neste período ainda.</p>
+{% else %}
+
+<section class="grafico">
+  <h2>Peças doadas por mês</h2>
+  {% set maximo = dados.max_mes %}
+  <div class="colunas" role="img" aria-label="Gráfico de colunas: peças doadas por mês. Os valores estão na tabela abaixo do gráfico.">
+    <span class="eixo-max">{{ maximo }}</span>
+    <div class="area">
+      {% for m in dados.meses %}
+      <div class="coluna" tabindex="0">
+        {% if maximo and m.pecas == maximo %}<span class="valor-topo" style="bottom: {{ 100 * m.pecas / maximo }}%">{{ m.pecas }}</span>{% endif %}
+        <div class="barra-v" style="height: {{ (100 * m.pecas / maximo) if maximo else 0 }}%"></div>
+        <span class="dica">{{ m.rotulo }}: <b>{{ m.pecas }}</b> {{ 'peça' if m.pecas == 1 else 'peças' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="rotulos-x">
+      {% for m in dados.meses %}<span>{% if dados.meses|length <= 12 or loop.index0 % 3 == 0 %}{{ m.rotulo }}{% endif %}</span>{% endfor %}
+    </div>
+  </div>
+  <details><summary>Ver dados em tabela</summary>
+    <table><tr><th>Mês</th><th>Peças</th></tr>
+      {% for m in dados.meses %}<tr><td>{{ m.rotulo }}</td><td>{{ m.pecas }}</td></tr>{% endfor %}
+    </table>
+  </details>
+</section>
+
+<div class="dois-graficos">
+  {% for titulo, lista in [('Peças por categoria', dados.categorias), ('Peças por instituição', dados.instituicoes)] %}
+  <section class="grafico">
+    <h2>{{ titulo }}</h2>
+    {% set maior = lista[0][1] %}
+    <div class="barras-h" role="img" aria-label="Gráfico de barras: {{ titulo|lower }}">
+      {% for nome, qtd in lista %}
+      <div class="linha-barra" tabindex="0">
+        <span class="nome">{{ nome }}</span>
+        <span class="trilho"><span class="barra-h" style="width: {{ 100 * qtd / maior }}%"></span></span>
+        <span class="qtd">{{ qtd }}</span>
+        <span class="dica">{{ nome }}: <b>{{ qtd }}</b> {{ 'peça' if qtd == 1 else 'peças' }} ({{ '%.0f'|format(100 * qtd / dados.totais.pecas) }}%)</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

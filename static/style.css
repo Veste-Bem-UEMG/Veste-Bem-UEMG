@@ -67,3 +67,44 @@ tr.atual td { background: #fffde7; font-weight: 600; }
 .recusa input { flex: 1; padding: 7px 8px; font-size: .9rem; }
 .acesso { margin-top: 6px; } .acesso input { width: 110px; padding: 6px 8px; font-size: .85rem; } .acesso button { padding: 6px 10px; font-size: .85rem; white-space: nowrap; }
 .tag { display: inline-block; background: var(--verde-claro); color: var(--verde); padding: 2px 8px; border-radius: 10px; font-size: .85rem; }
+
+/* ---------- Nosso impacto: gráficos ---------- */
+.grafico { background: var(--branco); border: 1px solid var(--borda); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; }
+.grafico h2 { margin: 0 0 14px; font-size: 1.1rem; }
+.grafico details { margin-top: 12px; } .grafico details table { margin: 8px 0 0; max-width: 320px; }
+summary { cursor: pointer; color: var(--verde); font-size: .9rem; }
+.dica { display: none; position: absolute; z-index: 2; background: var(--texto); color: #fff; font-size: .8rem;
+        padding: 5px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
+/* colunas (peças por mês) */
+.colunas { position: relative; padding-left: 34px; }
+.eixo-max { position: absolute; left: 0; top: -7px; font-size: .75rem; color: var(--cinza); }
+.area { height: 200px; display: flex; align-items: flex-end; gap: 2px; border-top: 1px dashed var(--borda);
+        border-bottom: 1px solid var(--cinza); }
+.coluna { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; outline: none; }
+.barra-v { width: 70%; max-width: 36px; background: var(--verde); border-radius: 4px 4px 0 0; }
+.coluna:hover .barra-v, .coluna:focus .barra-v { background: #1b5e20; }
+.coluna .dica { bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
+.coluna:hover .dica, .coluna:focus .dica { display: block; }
+.coluna:first-child .dica { left: 0; transform: none; } .coluna:last-child .dica { left: auto; right: 0; transform: none; }
+.valor-topo { position: absolute; margin-bottom: 4px; font-size: .75rem; font-weight: 600; color: var(--texto); }
+.rotulos-x { display: flex; gap: 2px; margin-top: 6px; }
+.rotulos-x span { flex: 1; text-align: center; font-size: .72rem; color: var(--cinza); white-space: nowrap; overflow: visible; }
+/* barras horizontais (categoria / instituição) */
+.dois-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.dois-graficos .grafico { margin-bottom: 0; }
+.barras-h { display: flex; flex-direction: column; gap: 6px; }
+.linha-barra { position: relative; display: grid; grid-template-columns: minmax(90px, 38%) 1fr 40px; align-items: center;
+               gap: 8px; padding: 3px 0; border-radius: 6px; outline: none; }
+.linha-barra:hover, .linha-barra:focus { background: var(--fundo); }
+.linha-barra .nome { font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trilho { height: 14px; display: block; }
+.barra-h { display: block; height: 100%; min-width: 2px; background: var(--verde); border-radius: 0 4px 4px 0; }
+.linha-barra .qtd { font-size: .85rem; font-weight: 600; text-align: right; }
+.linha-barra .dica { bottom: calc(100% + 2px); left: 38%; }
+.linha-barra:hover .dica, .linha-barra:focus .dica { display: block; }
+.dois-graficos + * { margin-top: 20px; }
+/* exportar CSV */
+.exportar { background: var(--branco); border: 1px solid var(--borda); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; }
+.exportar form { margin: 10px 0 6px; align-items: flex-end; } .exportar label { margin: 0; }
+.exportar small { color: var(--cinza); }
+.exportar input, .exportar select { flex: none; }

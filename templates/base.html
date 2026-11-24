@@ -26,6 +26,7 @@
         <a href="{{ url_for('instituicoes') }}">Instituições</a>
         <a href="{{ url_for('premios') }}">Prêmios</a>
       {% endif %}
+      <a href="{{ url_for('impacto') }}">Nosso impacto</a>
       <a href="{{ url_for('ranking') }}">Ranking</a>
       <span class="quem">{{ g.usuario.usuario }}{% if g.usuario.is_doador %} · {{ g.usuario.saldo_pontos }} pts{% elif g.usuario.is_instituicao %} · {{ g.usuario.instituicao.nome }}{% endif %}</span>
       <a class="sair" href="{{ url_for('logout') }}">Sair</a>

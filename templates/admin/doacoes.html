@@ -10,6 +10,8 @@
   <div class="card"><span class="rotulo">Peças doadas</span><strong class="numero">{{ resumo.pecas }}</strong></div>
 </div>
 
+{% include "_exportar_csv.html" %}
+
 <p class="abas">
   {% for s in ['pendente', 'confirmada', 'recusada'] %}
   <a href="{{ url_for('admin_doacoes', status=s) }}" class="{% if s == status %}ativa{% endif %}">{{ s|capitalize }}s</a>

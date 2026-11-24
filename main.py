@@ -15,12 +15,15 @@ Perfis de acesso:
 Login de administrador padrão (APENAS PARA TESTE):
     usuário: admin   senha: 123
 """
+import csv
+import io
 import math
 import os
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, flash, g, redirect, render_template, request, session, url_for
 from sqlalchemy import extract, func, inspect, text
 
 from models import (
@@ -121,13 +124,16 @@ def login_obrigatorio(view):
     return wrapper
 
 
-def perfil_obrigatorio(perfil, mensagem):
-    """Cria um decorator que só deixa acessar a rota quem tem o perfil indicado."""
+def perfil_obrigatorio(perfis, mensagem):
+    """Cria um decorator que só deixa acessar a rota quem tem um dos perfis indicados."""
+    if isinstance(perfis, str):
+        perfis = (perfis,)
+
     def decorator(view):
         @wraps(view)
         @login_obrigatorio
         def wrapper(*args, **kwargs):
-            if g.usuario.perfil != perfil:
+            if g.usuario.perfil not in perfis:
                 flash(mensagem, "erro")
                 return redirect(pagina_inicial(g.usuario))
             return view(*args, **kwargs)
@@ -138,6 +144,8 @@ def perfil_obrigatorio(perfil, mensagem):
 admin_obrigatorio = perfil_obrigatorio("admin", "Acesso restrito ao administrador.")
 instituicao_obrigatorio = perfil_obrigatorio("instituicao", "Acesso restrito às instituições parceiras.")
 doador_obrigatorio = perfil_obrigatorio("doador", "Esta página é exclusiva para doadores.")
+relatorio_obrigatorio = perfil_obrigatorio(("admin", "instituicao"),
+                                           "Relatórios disponíveis apenas para instituições e administradores.")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -443,7 +451,8 @@ def admin_doacoes():
         "pecas": db.session.query(func.coalesce(func.sum(ItemDoacao.quantidade), 0))
                  .join(Doacao).filter(Doacao.status == Doacao.CONFIRMADA).scalar(),
     }
-    return render_template("admin/doacoes.html", doacoes=doacoes, status=status, resumo=resumo)
+    return render_template("admin/doacoes.html", doacoes=doacoes, status=status, resumo=resumo,
+                           instituicoes=Instituicao.query.order_by(Instituicao.nome).all())
 
 
 @app.route("/admin/instituicoes", methods=["GET", "POST"])
@@ -570,6 +579,159 @@ def admin_usuarios():
     if perfil:
         usuarios = [u for u in usuarios if u.perfil == perfil]
     return render_template("admin/usuarios.html", usuarios=usuarios, perfil=perfil)
+
+
+# ===========================================================================
+# Nosso impacto (gráficos) e relatório CSV
+# ===========================================================================
+MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+PERIODOS = {"12m": "Últimos 12 meses", "ano": "Este ano", "tudo": "Desde o início"}
+
+
+def somar_meses(ano, mes, n):
+    """Avança (ou volta, se n < 0) n meses a partir de ano/mês."""
+    total = ano * 12 + (mes - 1) + n
+    return total // 12, total % 12 + 1
+
+
+def dados_impacto(periodo):
+    """Agrega as doações CONFIRMADAS do período para os gráficos da página de impacto."""
+    agora = datetime.utcnow()
+    if periodo == "ano":
+        inicio = datetime(agora.year, 1, 1)
+    elif periodo == "tudo":
+        inicio = None
+    else:  # "12m": o mês atual e os 11 anteriores
+        ano, mes = somar_meses(agora.year, agora.month, -11)
+        inicio = datetime(ano, mes, 1)
+
+    consulta = Doacao.query.filter(Doacao.status == Doacao.CONFIRMADA)
+    if inicio:
+        consulta = consulta.filter(Doacao.confirmada_em >= inicio)
+    doacoes = consulta.all()
+
+    # Somas feitas em Python para funcionar igual em SQLite, MySQL ou PostgreSQL
+    por_mes, por_categoria, por_instituicao = {}, {}, {}
+    for d in doacoes:
+        chave = (d.confirmada_em.year, d.confirmada_em.month)
+        por_mes[chave] = por_mes.get(chave, 0) + d.total_pecas
+        por_instituicao[d.instituicao.nome] = por_instituicao.get(d.instituicao.nome, 0) + d.total_pecas
+        for item in d.itens:
+            por_categoria[item.categoria.nome] = por_categoria.get(item.categoria.nome, 0) + item.quantidade
+
+    # Eixo de meses contínuo (meses sem doação aparecem com 0)
+    if inicio is None:
+        primeiro = min(por_mes) if por_mes else (agora.year, agora.month)
+        inicio_eixo = max(primeiro, somar_meses(agora.year, agora.month, -35))  # no máximo 36 meses
+    else:
+        inicio_eixo = (inicio.year, inicio.month)
+    meses, atual = [], inicio_eixo
+    while atual <= (agora.year, agora.month):
+        meses.append({"rotulo": f"{MESES[atual[1] - 1]}/{str(atual[0])[2:]}", "pecas": por_mes.get(atual, 0)})
+        atual = somar_meses(atual[0], atual[1], 1)
+
+    def ordenar(dicionario):
+        return sorted(dicionario.items(), key=lambda par: (-par[1], par[0]))
+
+    return {
+        "totais": {
+            "pecas": sum(d.total_pecas for d in doacoes),
+            "doacoes": len(doacoes),
+            "doadores": len({d.usuario_id for d in doacoes}),
+            "instituicoes": len({d.instituicao_id for d in doacoes}),
+        },
+        "meses": meses,
+        "max_mes": max((m["pecas"] for m in meses), default=0),
+        "categorias": ordenar(por_categoria),
+        "instituicoes": ordenar(por_instituicao),
+    }
+
+
+@app.route("/impacto")
+@login_obrigatorio
+def impacto():
+    """Página "Nosso impacto": visível para todos os perfis logados."""
+    periodo = request.args.get("periodo", "12m")
+    if periodo not in PERIODOS:
+        periodo = "12m"
+    return render_template("impacto.html", dados=dados_impacto(periodo), periodo=periodo, periodos=PERIODOS)
+
+
+def ler_data(texto):
+    """Converte 'AAAA-MM-DD' (formato do <input type="date">) em datetime; vazio -> None."""
+    return datetime.strptime(texto, "%Y-%m-%d") if texto else None
+
+
+def celula_segura(valor):
+    """Evita que um texto digitado pelo usuário vire fórmula ao abrir o CSV no Excel."""
+    texto = "" if valor is None else str(valor)
+    return "'" + texto if texto[:1] in ("=", "+", "-", "@", "\t", "\r") else texto
+
+
+def nome_de_arquivo(texto):
+    """'Instituto São José' -> 'instituto-sao-jose'"""
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return "-".join("".join(c if c.isalnum() else " " for c in texto.lower()).split())
+
+
+@app.route("/relatorio/doacoes.csv")
+@relatorio_obrigatorio
+def relatorio_doacoes_csv():
+    """
+    Exporta as doações do período em CSV (abre direto no Excel).
+    - Instituição: somente as doações destinadas a ela.
+    - Admin: todas, com filtro opcional por instituição.
+    Filtros: inicio/fim (data de registro da doação) e status.
+    """
+    try:
+        inicio = ler_data(request.args.get("inicio", ""))
+        fim = ler_data(request.args.get("fim", ""))
+    except ValueError:
+        flash("Data inválida no filtro do relatório.", "erro")
+        return redirect(pagina_inicial(g.usuario))
+    if inicio and fim and fim < inicio:
+        flash("A data final do relatório não pode ser anterior à inicial.", "erro")
+        return redirect(pagina_inicial(g.usuario))
+
+    consulta = Doacao.query
+    if g.usuario.is_instituicao:
+        instituicao = g.usuario.instituicao
+    else:
+        instituicao = db.session.get(Instituicao, request.args.get("instituicao_id", type=int) or 0)
+    if instituicao:
+        consulta = consulta.filter(Doacao.instituicao_id == instituicao.id)
+    if inicio:
+        consulta = consulta.filter(Doacao.criada_em >= inicio)
+    if fim:
+        consulta = consulta.filter(Doacao.criada_em < fim + timedelta(days=1))  # inclui o dia final
+    status = request.args.get("status", "")
+    if status in (Doacao.PENDENTE, Doacao.CONFIRMADA, Doacao.RECUSADA):
+        consulta = consulta.filter(Doacao.status == status)
+    doacoes = consulta.order_by(Doacao.criada_em).all()
+
+    categorias = Categoria.query.order_by(Categoria.nome).all()
+    saida = io.StringIO()
+    # ";" é o separador que o Excel em português espera
+    planilha = csv.writer(saida, delimiter=";")
+    planilha.writerow(["ID", "Data de registro", "Data de confirmação", "Doador", "Cidade", "UF",
+                       "Instituição", "Status", "Motivo da recusa", "Observação"]
+                      + [c.nome for c in categorias] + ["Total de peças", "Pontos"])
+    for d in doacoes:
+        quantidades = {item.categoria_id: item.quantidade for item in d.itens}
+        planilha.writerow(
+            [d.id, d.criada_em.strftime("%d/%m/%Y"),
+             d.confirmada_em.strftime("%d/%m/%Y") if d.confirmada_em else "",
+             celula_segura(d.usuario.usuario), celula_segura(d.usuario.cidade), d.usuario.estado,
+             celula_segura(d.instituicao.nome), d.status,
+             celula_segura(d.motivo_recusa), celula_segura(d.observacao)]
+            + [quantidades.get(c.id, 0) for c in categorias] + [d.total_pecas, d.pontos])
+
+    partes = ["doacoes", nome_de_arquivo(instituicao.nome) if instituicao else "todas",
+              inicio.strftime("%Y-%m-%d") if inicio else "inicio",
+              fim.strftime("%Y-%m-%d") if fim else datetime.utcnow().strftime("%Y-%m-%d")]
+    # "﻿" (BOM) faz o Excel reconhecer os acentos (UTF-8)
+    return Response("﻿" + saida.getvalue(), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{"_".join(partes)}.csv"'})
 
 
 # ===========================================================================

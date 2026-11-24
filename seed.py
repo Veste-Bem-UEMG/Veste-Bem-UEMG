@@ -97,8 +97,9 @@ def popular():
             u.definir_senha(senha)
             db.session.add(u)
 
-            for _ in range(random.randint(1, 6)):
-                data = datetime.utcnow() - timedelta(days=random.randint(0, 60))
+            # doações espalhadas pelos últimos ~11 meses (deixa o gráfico de "Nosso impacto" completo)
+            for _ in range(random.randint(4, 9)):
+                data = datetime.utcnow() - timedelta(days=random.randint(0, 330))
                 d = Doacao(usuario=u, instituicao=random.choice(instituicoes), criada_em=data)
                 for cat in random.sample(categorias, random.randint(1, 3)):
                     d.itens.append(ItemDoacao(categoria=cat, quantidade=random.randint(1, 6)))
